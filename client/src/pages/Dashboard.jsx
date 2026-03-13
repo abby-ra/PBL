@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { analyticsAPI } from '../services/api';
-
+import LiveMarketWidget from '../components/LiveMarketWidget';
 // ─── helpers ──────────────────────────────────
 const fmt = (n) =>
   n >= 1_000_000
@@ -30,6 +30,7 @@ function KPICard({ label, value, change, icon, accentColor }) {
     </div>
   );
 }
+<LiveMarketWidget />
 
 function MiniBar({ quarters }) {
   if (!quarters?.length) return null;

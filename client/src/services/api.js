@@ -105,3 +105,10 @@ export const decisionsAPI = {
 };
 
 export default { authAPI, historyAPI, chatAPI, analyticsAPI, predictionsAPI, decisionsAPI };
+
+// ── Market Data API ───────────────────────────
+export const marketAPI = {
+  getLive:    () => apiFetch('/market/live'),
+  getSymbol:  (symbol) => apiFetch(`/market/live/${symbol}`),
+  getSummary: () => apiFetch('/market/summary'),
+};
