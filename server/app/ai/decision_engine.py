@@ -10,7 +10,7 @@ Flow:
 """
 
 import re
-from app.data.mock_sap_data import get_mock_sap_data
+import app.data.mock_sap_data as _sap_module
 
 
 # ── Thresholds — based on industry benchmarks ─
@@ -28,12 +28,24 @@ THRESHOLDS = {
 }
 
 
+def _load_sap_data() -> dict:
+    for fn_name in ["get_mock_sap_data","get_sap_data","get_all_data","get_data","load_data","get_mock_data"]:
+        fn = getattr(_sap_module, fn_name, None)
+        if callable(fn):
+            return fn()
+    for var_name in ["SAP_DATA","MOCK_DATA","DATA","sap_data","mock_data","data"]:
+        var = getattr(_sap_module, var_name, None)
+        if isinstance(var, dict):
+            return var
+    return {}
+
+
 def get_sap_snapshot() -> dict:
     """
     Pull current SAP data values into a flat dict
     that the rule engine can check against.
     """
-    data = get_mock_sap_data()
+    data = _load_sap_data()
 
     fin = data.get("financial", {})
     hr  = data.get("hr", {})
