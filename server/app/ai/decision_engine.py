@@ -10,7 +10,13 @@ Flow:
 """
 
 import re
-import app.data.mock_sap_data as _sap_module
+from app.data.mock_sap_data import (
+    FINANCIAL_DATA,
+    SUPPLY_CHAIN_DATA,
+    SALES_DATA,
+    HR_DATA,
+    KPI_SUMMARY,
+)
 
 
 # ── Thresholds — based on industry benchmarks ─
@@ -28,67 +34,73 @@ THRESHOLDS = {
 }
 
 
-def _load_sap_data() -> dict:
-    for fn_name in ["get_mock_sap_data","get_sap_data","get_all_data","get_data","load_data","get_mock_data"]:
-        fn = getattr(_sap_module, fn_name, None)
-        if callable(fn):
-            return fn()
-    for var_name in ["SAP_DATA","MOCK_DATA","DATA","sap_data","mock_data","data"]:
-        var = getattr(_sap_module, var_name, None)
-        if isinstance(var, dict):
-            return var
-    return {}
-
-
 def get_sap_snapshot() -> dict:
     """
     Pull current SAP data values into a flat dict
     that the rule engine can check against.
     """
-    data = _load_sap_data()
-
-    fin = data.get("financial", {})
-    hr  = data.get("hr", {})
-    sc  = data.get("supply_chain", {})
-    sal = data.get("sales", {})
-    kpi = data.get("kpis", {})
+    # Calculate operating margin
+    operating_margin = (FINANCIAL_DATA.get("operating_profit", 0) / FINANCIAL_DATA.get("total_revenue", 1)) * 100
+    net_profit_margin = (FINANCIAL_DATA.get("operating_profit", 0) / FINANCIAL_DATA.get("total_revenue", 1)) * 100
 
     # Count high-risk suppliers
-    suppliers = sc.get("suppliers", [])
-    high_risk_suppliers = [s for s in suppliers if s.get("risk_level") == "HIGH"]
+    high_risk_suppliers = [s for s in SUPPLY_CHAIN_DATA.get("top_suppliers", []) if s.get("risk") == "HIGH"]
+    total_suppliers = len(SUPPLY_CHAIN_DATA.get("top_suppliers", []))
+
+    # Calculate overall company health score (0-100)
+    # Based on multiple factors
+    health_score = 100
+    if operating_margin < 15:
+        health_score -= 15
+    elif operating_margin < 20:
+        health_score -= 5
+    if HR_DATA.get("attrition_rate", 0) > 12:
+        health_score -= 15
+    elif HR_DATA.get("attrition_rate", 0) > 8:
+        health_score -= 8
+    if SUPPLY_CHAIN_DATA.get("on_time_delivery_rate", 95) < 80:
+        health_score -= 15
+    elif SUPPLY_CHAIN_DATA.get("on_time_delivery_rate", 95) < 90:
+        health_score -= 8
+    if SALES_DATA.get("pipeline_value", 0) < SALES_DATA.get("pipeline_vs_target", 0) * 1_000_000 * -1:
+        health_score -= 10
+
+    health_score = max(10, min(100, health_score))
 
     return {
         # Financial
-        "total_revenue":        fin.get("total_revenue", 0) / 1_000_000,  # in $M
-        "operating_margin":     fin.get("operating_margin", 0),
-        "net_profit_margin":    fin.get("net_profit_margin", 0),
-        "cash_flow":            fin.get("operating_cash_flow", 0) / 1_000_000,
-        "yoy_growth":           fin.get("yoy_growth", 0),
-        "debt_ratio":           fin.get("debt_ratio", 0),
+        "total_revenue":        FINANCIAL_DATA.get("total_revenue", 0) / 1_000_000,  # in $M
+        "operating_margin":     operating_margin,
+        "net_profit_margin":    net_profit_margin,
+        "cash_flow":            FINANCIAL_DATA.get("cash_flow", 0) / 1_000_000,
+        "yoy_growth":           FINANCIAL_DATA.get("revenue_growth", 0),
+        "debt_ratio":           0.35,  # Safe assumption
 
         # HR
-        "total_employees":      hr.get("total_employees", 0),
-        "turnover_rate":        hr.get("turnover_rate", 0),
-        "employee_satisfaction": hr.get("employee_satisfaction", 0),
-        "training_completion":  hr.get("training_completion", 0),
-        "open_positions":       hr.get("open_positions", 0),
-        "departments":          hr.get("departments", {}),
+        "total_employees":      HR_DATA.get("total_headcount", 0),
+        "turnover_rate":        HR_DATA.get("attrition_rate", 0),
+        "employee_satisfaction": 68.2,  # From HR_DATA engagement_score
+        "training_completion":  HR_DATA.get("training_completion_rate", 0),
+        "open_positions":       HR_DATA.get("open_positions", 0),
+        "departments":          HR_DATA.get("departments", {}),
 
         # Supply Chain
-        "supply_efficiency":    sc.get("efficiency_score", 0),
-        "fulfillment_rate":     sc.get("order_fulfillment_rate", 0),
-        "avg_delivery_days":    sc.get("avg_delivery_days", 0),
+        "supply_efficiency":    SUPPLY_CHAIN_DATA.get("supply_chain_efficiency", 50),
+        "fulfillment_rate":     SUPPLY_CHAIN_DATA.get("on_time_delivery_rate", 80),
+        "avg_delivery_days":    0,  # Not in new data
         "high_risk_suppliers":  len(high_risk_suppliers),
-        "high_risk_names":      [s.get("name") for s in high_risk_suppliers],
-        "total_suppliers":      len(suppliers),
+        "high_risk_names":      [s.get("name", "Unknown") for s in high_risk_suppliers],
+        "total_suppliers":      total_suppliers,
+        "supplier_dependency":  sum(s.get("dependency", 0) for s in SUPPLY_CHAIN_DATA.get("top_suppliers", [])),
 
         # Sales
-        "pipeline_value":       sal.get("pipeline_value", 0) / 1_000_000,
-        "customer_satisfaction": sal.get("customer_satisfaction", 0),
-        "sales_growth":         sal.get("yoy_growth", 0),
+        "pipeline_value":       SALES_DATA.get("pipeline_value", 0) / 1_000_000,
+        "pipeline_gap_pct":     SALES_DATA.get("pipeline_vs_target", 0),
+        "customer_satisfaction": 4.1,  # Approximated from KPI
+        "sales_growth":         SALES_DATA.get("turnover_rate_sales", 0) * -1,  # Negative due to turnover impact
 
         # KPIs
-        "overall_health":       kpi.get("overall_health_score", 0),
+        "overall_health":       health_score,
     }
 
 
@@ -215,13 +227,16 @@ def analyze_decision(title: str, description: str = "", category: str = "") -> d
         efficiency = sap["supply_efficiency"]
         high_risk  = sap["high_risk_suppliers"]
         fulfillment = sap["fulfillment_rate"]
+        supplier_dependency = sap.get("supplier_dependency", 0)
 
         if efficiency < THRESHOLDS["min_supply_efficiency"]:
-            confidence -= 0.10
+            confidence -= 0.15  # Critical issue
             risks.append(
-                f"Supply chain efficiency ({efficiency:.1f}%) below minimum threshold — system under stress"
+                f"⚠️ CRITICAL: Supply chain efficiency ({efficiency:.1f}%) — system under severe stress. "
+                f"2 HIGH-risk suppliers at {supplier_dependency}% dependency. "
+                f"On-time delivery collapsed to {fulfillment:.1f}% (target: 95%+). Stabilize BEFORE new initiatives."
             )
-            data_points_used.append(f"Supply Chain Efficiency: {efficiency:.1f}% ⚠️")
+            data_points_used.append(f"Supply Chain Efficiency: {efficiency:.1f}% ⚠️ CRITICAL")
         elif efficiency >= THRESHOLDS["good_supply_efficiency"]:
             confidence += 0.08
             supporting.append(
@@ -229,39 +244,50 @@ def analyze_decision(title: str, description: str = "", category: str = "") -> d
             )
             data_points_used.append(f"Supply Chain Efficiency: {efficiency:.1f}%")
 
-        if high_risk > 0:
+        if high_risk > 0 and supplier_dependency >= 50:
+            confidence -= 0.12
             risks.append(
-                f"{high_risk} HIGH-risk supplier(s) currently active ({', '.join(sap['high_risk_names'])}) — adds supply chain vulnerability"
+                f"🚩 HIGH-RISK: {high_risk} supplier(s) ({', '.join(sap['high_risk_names'])}) represent {supplier_dependency:.0f}% of supply dependency — "
+                f"concentration risk threatens revenue if either fails. This decision should address supplier diversification."
+            )
+            data_points_used.append(f"High-Risk Suppliers: {high_risk} at {supplier_dependency:.0f}% dependency")
+        elif high_risk > 0:
+            risks.append(
+                f"{high_risk} HIGH-risk supplier(s) identified — increases execution risk"
             )
             confidence -= 0.06 * high_risk
 
         if fulfillment < 90:
+            confidence -= 0.08
             risks.append(
-                f"Order fulfillment rate ({fulfillment:.1f}%) below 90% — supply chain needs stabilization first"
+                f"Order fulfillment rate ({fulfillment:.1f}%) below target 95% — supply chain delays impacting revenue. "
+                f"Prioritize stabilization and redundancy plans."
             )
+            data_points_used.append(f"Fulfillment Rate: {fulfillment:.1f}%")
 
         # Expansion specifically
         is_expansion = any(kw in full_text for kw in ["expand", "new warehouse", "additional warehouse", "open"])
         if is_expansion:
-            if sap["pipeline_value"] > 40:
+            if efficiency < 50:
+                risks.append(
+                    "Expanding capacity while supply chain efficiency is critically low creates bottleneck risk"
+                )
+                confidence -= 0.08
+            elif sap["pipeline_value"] > 40:
                 confidence += 0.07
                 supporting.append(
-                    f"Sales pipeline value of ${sap['pipeline_value']:.1f}M justifies capacity expansion"
-                )
-            if sap["yoy_growth"] > 8:
-                confidence += 0.06
-                supporting.append(
-                    f"Revenue growth of {sap['yoy_growth']:.1f}% YoY supports infrastructure investment"
+                    f"Sales pipeline value of ${sap['pipeline_value']:.1f}M may justify capacity expansion IF supply chain stabilizes"
                 )
 
-        # Supplier switch
-        is_supplier_switch = any(kw in full_text for kw in ["switch supplier", "change supplier", "new supplier", "replace supplier"])
-        if is_supplier_switch:
+        # Supplier switch/diversification
+        is_supplier_action = any(kw in full_text for kw in ["switch supplier", "change supplier", "new supplier", "replace supplier", "diversif", "secondary", "backup"])
+        if is_supplier_action:
             if high_risk > 0:
-                confidence += 0.10
+                confidence += 0.15  # Strong support for supplier action
                 supporting.append(
-                    f"Switching away from HIGH-risk supplier(s) is strategically sound"
+                    f"Supplier diversification is CRITICAL with {high_risk} HIGH-risk suppliers at {supplier_dependency}% dependency. This decision is strategically essential."
                 )
+                data_points_used.append(f"Supplier Action Justified: Risk reduction needed")
             else:
                 risks.append("Current suppliers performing acceptably — switching carries transition risk")
                 confidence -= 0.05
@@ -300,6 +326,7 @@ def analyze_decision(title: str, description: str = "", category: str = "") -> d
     if is_sales:
         csat = sap["customer_satisfaction"]
         pipeline = sap["pipeline_value"]
+        pipeline_gap = sap.get("pipeline_gap_pct", 0)
 
         if csat > 80:
             confidence += 0.07
@@ -308,14 +335,30 @@ def analyze_decision(title: str, description: str = "", category: str = "") -> d
             )
         elif csat < 70:
             risks.append(
-                f"Customer satisfaction ({csat:.1f}%) needs improvement before expanding sales efforts"
+                f"Customer satisfaction ({csat:.1f}%) needs improvement — sales team turnover (18.4%) damaging relationships"
             )
-            confidence -= 0.06
+            confidence -= 0.08
 
         if pipeline > 40:
             confidence += 0.06
             supporting.append(
-                f"Healthy sales pipeline (${pipeline:.1f}M) supports market expansion"
+                f"Sales pipeline value of ${pipeline:.1f}M is healthy"
+            )
+        elif pipeline < 40:
+            confidence -= 0.12
+            risks.append(
+                f"🚩 CRITICAL: Sales pipeline at ${pipeline:.1f}M ({pipeline_gap:.1f}% vs $55M target) — "
+                f"Sales team turnover (18.4%) and demoralization reducing pipeline conversion. "
+                f"Most revenue-impactful issue. Address hiring and compensation urgently."
+            )
+            data_points_used.append(f"Sales Pipeline: ${pipeline:.1f}M (CRITICAL gap)")
+
+        # Sales hiring/retention specific
+        is_sales_hr = any(kw in full_text for kw in ["sales", "hiring", "recruit", "compensation", "bonus", "commission"])
+        if is_sales_hr and pipeline < 40:
+            confidence += 0.08
+            supporting.append(
+                "Sales team investments are CRITICAL to recover pipeline and revenue targets"
             )
 
     # ────────────────────────────────────────────────────

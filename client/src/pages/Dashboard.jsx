@@ -30,7 +30,6 @@ function KPICard({ label, value, change, icon, accentColor }) {
     </div>
   );
 }
-<LiveMarketWidget />
 
 function MiniBar({ quarters }) {
   if (!quarters?.length) return null;
@@ -99,50 +98,50 @@ export default function Dashboard() {
   if (loading) return <LoadingState />;
   if (error) return <ErrorState message={error} />;
 
-  const { kpis, financial, sales, hr, decisions, predictions } = data;
+  const { kpis, financial, sales, hr, decisions, predictions } = data || {};
 
   const kpiCards = [
     {
       label: 'Total Revenue',
-      value: fmt(kpis.total_revenue.value),
-      change: kpis.total_revenue.change,
+      value: fmt(kpis?.total_revenue?.value),
+      change: kpis?.total_revenue?.change,
       icon: '💰',
       accentColor: '#3b82f6',
     },
     {
       label: 'Sales Count',
-      value: kpis.sales_count.value.toLocaleString(),
-      change: kpis.sales_count.change,
+      value: kpis?.sales_count?.value?.toLocaleString(),
+      change: kpis?.sales_count?.change,
       icon: '📈',
       accentColor: '#10b981',
     },
     {
       label: 'Customer Satisfaction',
-      value: `${kpis.customer_satisfaction.value}/5`,
-      change: kpis.customer_satisfaction.change,
+      value: `${kpis?.customer_satisfaction?.value}/5`,
+      change: kpis?.customer_satisfaction?.change,
       icon: '⭐',
       accentColor: '#f59e0b',
     },
     {
-      label: 'Active Users',
-      value: kpis.active_users.value.toLocaleString(),
-      change: kpis.active_users.change,
-      icon: '👥',
-      accentColor: '#8b5cf6',
+      label: 'Pipeline Health',
+      value: fmt(kpis?.pipeline_health?.value),
+      change: kpis?.pipeline_health?.change,
+      icon: '📊',
+      accentColor: '#ef4444',
     },
     {
-      label: 'AI Confidence',
-      value: `${kpis.avg_confidence.value}%`,
-      change: kpis.avg_confidence.change,
-      icon: '🤖',
-      accentColor: '#06b6d4',
+      label: 'Supply Chain',
+      value: `${kpis?.supply_chain_efficiency?.value?.toFixed(1)}%`,
+      change: kpis?.supply_chain_efficiency?.change,
+      icon: '🔗',
+      accentColor: '#f59e0b',
     },
     {
-      label: 'Decisions Made',
-      value: kpis.decisions_made.value,
-      change: kpis.decisions_made.change,
-      icon: '✅',
-      accentColor: '#10b981',
+      label: 'Attrition Rate',
+      value: `${kpis?.attrition_rate?.value?.toFixed(1)}%`,
+      change: kpis?.attrition_rate?.change,
+      icon: '⚠️',
+      accentColor: '#ef4444',
     },
   ];
 
@@ -152,7 +151,7 @@ export default function Dashboard() {
         <div>
           <div className="page-title">Dashboard Overview</div>
           <div className="page-subtitle">
-            SAP Enterprise Decision Support · Last updated: {new Date(data.refreshed_at).toLocaleTimeString()}
+            SAP Enterprise Decision Support · Last updated: {data?.refreshed_at ? new Date(data.refreshed_at).toLocaleTimeString() : 'N/A'}
           </div>
         </div>
         <div className="header-actions">
@@ -179,12 +178,12 @@ export default function Dashboard() {
                 <div className="card-title">Revenue Trend</div>
                 <div className="card-subtitle">Quarterly performance</div>
               </div>
-              <span className="badge badge-green">+{financial.revenue_growth}% YoY</span>
+              <span className="badge badge-green">+{financial?.revenue_growth || 0}% YoY</span>
             </div>
-            <MiniBar quarters={financial.quarterly} />
+            <MiniBar quarters={financial?.quarterly} />
             <div style={{ marginTop: 32 }} />
             <div style={{ display: 'flex', gap: 20, marginTop: 8 }}>
-              {financial.quarterly.map((q, i) => (
+              {(financial?.quarterly || []).map((q, i) => (
                 <div key={i} style={{ flex: 1 }}>
                   <div className="text-muted text-sm">{q.quarter}</div>
                   <div className="text-mono" style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
@@ -205,11 +204,11 @@ export default function Dashboard() {
               <span className="badge badge-blue">Live</span>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <StatRow label="Sales Pipeline" value={`$${(sales.pipeline_value / 1e6).toFixed(0)}M`} color="var(--accent-blue)" pct={68} />
-              <StatRow label="Win Rate" value={`${sales.win_rate}%`} color="var(--accent-green)" pct={sales.win_rate} />
-              <StatRow label="On-time Delivery" value={`${supplyChain?.performance?.on_time_delivery_rate}%`} color="var(--accent-cyan)" pct={supplyChain?.performance?.on_time_delivery_rate} />
-              <StatRow label="HR Attrition" value={`${hr.attrition_rate}%`} color="var(--accent-amber)" pct={hr.attrition_rate * 4} />
-              <StatRow label="AI Confidence" value={`${kpis.avg_confidence.value}%`} color="var(--accent-violet)" pct={kpis.avg_confidence.value} />
+              <StatRow label="Sales Pipeline" value={`$${((sales?.pipeline_value || 0) / 1e6).toFixed(0)}M`} color="var(--accent-blue)" pct={68} />
+              <StatRow label="Win Rate" value={`${sales?.win_rate || 0}%`} color="var(--accent-green)" pct={sales?.win_rate || 0} />
+              <StatRow label="On-time Delivery" value={`${supplyChain?.performance?.on_time_delivery_rate || 0}%`} color="var(--accent-cyan)" pct={supplyChain?.performance?.on_time_delivery_rate || 0} />
+              <StatRow label="HR Attrition" value={`${hr?.attrition_rate || 0}%`} color="var(--accent-amber)" pct={(hr?.attrition_rate || 0) * 4} />
+              <StatRow label="AI Confidence" value={`${kpis?.avg_confidence?.value || 0}%`} color="var(--accent-violet)" pct={kpis?.avg_confidence?.value || 0} />
             </div>
           </div>
         </div>
@@ -222,9 +221,9 @@ export default function Dashboard() {
               <a href="/decisions" className="btn btn-ghost btn-sm" style={{ fontSize: 12 }}>View all →</a>
             </div>
             <div style={{ display: 'flex', gap: 12 }}>
-              <SummaryBox label="Total" value={decisions.total} color="var(--accent-blue)" />
-              <SummaryBox label="Pending" value={decisions.pending} color="var(--accent-amber)" />
-              <SummaryBox label="Resolved" value={decisions.total - decisions.pending} color="var(--accent-green)" />
+              <SummaryBox label="Total" value={decisions?.total || 0} color="var(--accent-blue)" />
+              <SummaryBox label="Pending" value={decisions?.pending || 0} color="var(--accent-amber)" />
+              <SummaryBox label="Resolved" value={(decisions?.total || 0) - (decisions?.pending || 0)} color="var(--accent-green)" />
             </div>
           </div>
 
@@ -235,9 +234,9 @@ export default function Dashboard() {
               <a href="/predictions" className="btn btn-ghost btn-sm" style={{ fontSize: 12 }}>View all →</a>
             </div>
             <div style={{ display: 'flex', gap: 12 }}>
-              <SummaryBox label="Total" value={predictions.total} color="var(--accent-violet)" />
-              <SummaryBox label="High Risk" value={predictions.high_risk} color="var(--accent-red)" />
-              <SummaryBox label="Safe" value={predictions.total - predictions.high_risk} color="var(--accent-green)" />
+              <SummaryBox label="Total" value={predictions?.total || 0} color="var(--accent-violet)" />
+              <SummaryBox label="High Risk" value={predictions?.high_risk || 0} color="var(--accent-red)" />
+              <SummaryBox label="Safe" value={(predictions?.total || 0) - (predictions?.high_risk || 0)} color="var(--accent-green)" />
             </div>
           </div>
         </div>

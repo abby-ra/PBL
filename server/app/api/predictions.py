@@ -46,14 +46,30 @@ class PredictionNarrativeRequest(BaseModel):
 @router.get("/predictions")
 async def get_predictions():
     """
-    Returns all AI predictions with metadata.
-    In production, these would come from your ML models (SARIMA, XGBoost, Prophet, etc.)
+    Returns all AI predictions with metadata — connected to real business problems.
+    These predictions show WHAT WILL HAPPEN if current trends continue.
     """
+    
+    # Organize predictions by urgency
+    critical_predictions = [p for p in PREDICTIONS_DATA if p.get("risk_level") == "CRITICAL"]
+    high_predictions = [p for p in PREDICTIONS_DATA if p.get("risk_level") == "HIGH"]
+    other_predictions = [p for p in PREDICTIONS_DATA if p.get("risk_level") not in ["CRITICAL", "HIGH"]]
+    
     return {
         "predictions": PREDICTIONS_DATA,
+        "by_urgency": {
+            "critical": critical_predictions,
+            "high": high_predictions,
+            "other": other_predictions,
+        },
+        "summary": {
+            "total": len(PREDICTIONS_DATA),
+            "critical": len(critical_predictions),
+            "high": len(high_predictions),
+            "executive_alert": f"{len(critical_predictions + high_predictions)} urgent predictions — all tied to 3 interconnected problems",
+        },
         "generated_at": datetime.utcnow().isoformat() + "Z",
-        "model_version": "1.0.0",
-        "total": len(PREDICTIONS_DATA),
+        "model_version": "2.0.0",
     }
 
 
@@ -97,22 +113,48 @@ async def get_prediction_narrative(prediction_id: str):
 
 @router.get("/predictions/summary/risks")
 async def get_risk_summary():
-    """Returns a risk summary dashboard view — HIGH/MEDIUM/LOW predictions."""
-    high = [p for p in PREDICTIONS_DATA if p["risk_level"] == "HIGH"]
-    medium = [p for p in PREDICTIONS_DATA if p["risk_level"] == "MEDIUM"]
-    low = [p for p in PREDICTIONS_DATA if p["risk_level"] == "LOW"]
+    """
+    Returns a risk summary dashboard view — organized by urgency.
+    Shows WHAT WILL HAPPEN if each problem continues.
+    """
+    critical = [p for p in PREDICTIONS_DATA if p.get("risk_level") == "CRITICAL"]
+    high = [p for p in PREDICTIONS_DATA if p.get("risk_level") == "HIGH"]
+    medium = [p for p in PREDICTIONS_DATA if p.get("risk_level") == "MEDIUM"]
+    low = [p for p in PREDICTIONS_DATA if p.get("risk_level") == "LOW"]
+
+    # Map causes to problem space
+    problem_map = {
+        "Sales": "PROBLEM_1: Sales attrition → pipeline collapse",
+        "Supply": "PROBLEM_2: High-risk suppliers → delivery delays",
+        "Engineering": "PROBLEM_3: Engineering attrition → capacity blocked",
+        "BTP": "PROBLEM_3: Engineering attrition → SAP BTP opportunity lost",
+    }
 
     return {
-        "high_risk": high,
-        "medium_risk": medium,
-        "low_risk": low,
+        "critical": critical,
+        "high": high,
+        "medium": medium,
+        "low": low,
         "summary": {
             "total": len(PREDICTIONS_DATA),
+            "critical_count": len(critical),
             "high_count": len(high),
             "medium_count": len(medium),
             "low_count": len(low),
             "avg_confidence": round(
                 sum(p["confidence"] for p in PREDICTIONS_DATA) / len(PREDICTIONS_DATA), 1
             ),
+        },
+        "interconnected_narrative": (
+            "🚨 ALL HIGH/CRITICAL PREDICTIONS trace to 3 interconnected problems:\n\n"
+            "PROBLEM 1 (Sales turnover 18.4%) → Revenue forecast DOWN to $9.8M Q1 2025 (8.2% below plan)\n"
+            "PROBLEM 2 (56% supplier dependency) → Supply disruption risk 67.8% + $2.1M revenue loss\n"
+            "PROBLEM 3 (14.8% engineering attrition) → BTP growth stalled + 387 open positions\n\n"
+            "Revenue at risk: $2.1M - $4.1M depending on execution"
+        ),
+        "top_urgency": {
+            "must_address_first": "Sales team retention (Problem 1) — directly blocks $16.6M pipeline",
+            "second_priority": "Supplier diversification (Problem 2) — stabilize 71% on-time delivery",
+            "third_priority": "Engineering hiring (Problem 3) — unlock $3.1M+ SAP BTP growth opportunity",
         },
     }
